@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "iPhone 自動購入モニター",
+    "slug": "iphone-auto-purchase-monitor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["android", "web"],
+    "extra": {
+      "SERVER_BASE_URL": "http://38.180.28.53:3000",
+      "API_KEY": "578d28153ca5fc4f7b20c1e4df7c51f87638627b3261165ed8a9803129d85d97"
+    },
+    "android": {
+      "package": "com.iphoneautopurchase.monitor",
+      "versionCode": 1
+    }
+  }
+}
+
