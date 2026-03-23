@@ -28,8 +28,10 @@ const EXPO_EXTRA =
   // Fallback for some Expo runtimes/dev modes
   Constants.manifest?.extra ??
   {};
-const SERVER_BASE_URL = EXPO_EXTRA.SERVER_BASE_URL;
-const API_KEY = EXPO_EXTRA.API_KEY;
+// Vercel(Web)では `EXPO_PUBLIC_*`、Expo Native では `expo.extra` を優先利用する。
+const SERVER_BASE_URL =
+  process.env.EXPO_PUBLIC_SERVER_BASE_URL ?? EXPO_EXTRA.SERVER_BASE_URL;
+const API_KEY = process.env.EXPO_PUBLIC_API_KEY ?? EXPO_EXTRA.API_KEY;
 
 const CONFIG_OK = Boolean(SERVER_BASE_URL && API_KEY);
 
@@ -129,6 +131,7 @@ export default function App() {
       setIsStarting(true);
       setErrorMessage(null);
 
+      const parsedMonitoringInterval = Number.parseInt(storeMonitoringInterval, 10);
       const body = {
         itemUrl,
         spreadsheetId,
@@ -145,7 +148,10 @@ export default function App() {
         storeOption,
         payOption,
         confirmOption,
-        storeMonitoringInterval: 40,
+        storeMonitoringInterval:
+          Number.isFinite(parsedMonitoringInterval) && parsedMonitoringInterval > 0
+            ? parsedMonitoringInterval
+            : 40,
         workerId: 'mobile',
       };
 
@@ -455,6 +461,14 @@ export default function App() {
                   onPress={() => setConfirmOption('false')}
                 />
               </View>
+
+              <PaperText style={styles.label}>店舗監視間隔(秒)</PaperText>
+              <TextInput
+                mode="outlined"
+                value={storeMonitoringInterval}
+                onChangeText={setStoreMonitoringInterval}
+                keyboardType="number-pad"
+              />
 
             </Card.Content>
           </Card>
