@@ -1,5 +1,19 @@
 {
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "dist",
-  "framework": null
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/status",
+      "destination": "http://38.180.28.53:3000/status"
+    },
+    {
+      "source": "/start",
+      "destination": "http://38.180.28.53:3000/start"
+    },
+    {
+      "source": "/stop",
+      "destination": "http://38.180.28.53:3000/stop"
+    }
+  ]
 }

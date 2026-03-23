@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   SafeAreaView,
+  Platform,
   View,
   TouchableOpacity,
   ScrollView,
@@ -32,8 +33,9 @@ const EXPO_EXTRA =
 const SERVER_BASE_URL =
   process.env.EXPO_PUBLIC_SERVER_BASE_URL ?? EXPO_EXTRA.SERVER_BASE_URL;
 const API_KEY = process.env.EXPO_PUBLIC_API_KEY ?? EXPO_EXTRA.API_KEY;
+const API_BASE_URL = Platform.OS === 'web' ? '' : SERVER_BASE_URL;
 
-const CONFIG_OK = Boolean(SERVER_BASE_URL && API_KEY);
+const CONFIG_OK = Boolean((API_BASE_URL || Platform.OS === 'web') && API_KEY);
 
 export default function App() {
   // ===== index.html のフォームに対応するステート =====
@@ -93,7 +95,11 @@ export default function App() {
     // We log only a suffix to avoid leaking the full secret.
     const apiKeySuffix = typeof API_KEY === 'string' ? API_KEY.slice(-4) : 'n/a';
     // eslint-disable-next-line no-console
-    console.log('[mobile-config]', { ok: CONFIG_OK, serverBaseUrl: SERVER_BASE_URL, apiKeySuffix });
+    console.log('[mobile-config]', {
+      ok: CONFIG_OK,
+      serverBaseUrl: API_BASE_URL || '(same-origin proxy)',
+      apiKeySuffix,
+    });
   }, []);
 
   const fetchStatus = useCallback(async () => {
@@ -103,7 +109,7 @@ export default function App() {
         setStatus(null);
         return;
       }
-      const res = await axios.get(`${SERVER_BASE_URL}/status`, {
+      const res = await axios.get(`${API_BASE_URL}/status`, {
         headers: { 'x-api-key': API_KEY },
       });
       setStatus(res.data);
@@ -155,7 +161,7 @@ export default function App() {
         workerId: 'mobile',
       };
 
-      await axios.post(`${SERVER_BASE_URL}/start`, body, {
+      await axios.post(`${API_BASE_URL}/start`, body, {
         headers: { 'x-api-key': API_KEY },
       });
       await fetchStatus();
@@ -177,7 +183,7 @@ export default function App() {
       setIsStopping(true);
       setErrorMessage(null);
       await axios.post(
-        `${SERVER_BASE_URL}/stop`,
+        `${API_BASE_URL}/stop`,
         {},
         { headers: { 'x-api-key': API_KEY } },
       );
