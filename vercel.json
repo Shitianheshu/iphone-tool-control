@@ -5,15 +5,15 @@
   "rewrites": [
     {
       "source": "/status",
-      "destination": "http://38.180.28.53:3000/status"
+      "destination": "https://nonprejudiced-gerardo-preaexistent.ngrok-free.dev/status"
     },
     {
       "source": "/start",
-      "destination": "http://38.180.28.53:3000/start"
+      "destination": "https://nonprejudiced-gerardo-preaexistent.ngrok-free.dev/start"
     },
     {
       "source": "/stop",
-      "destination": "http://38.180.28.53:3000/stop"
+      "destination": "https://nonprejudiced-gerardo-preaexistent.ngrok-free.dev/stop"
     }
   ]
 }
