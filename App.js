@@ -21,6 +21,7 @@ import {
   TextInput,
 } from 'react-native-paper';
 import Constants from 'expo-constants';
+axios.defaults.headers.common["ngrok-skip-browser-warning"] = "true";
 
 // ===== サーバー設定 =====
 // NOTE: Store sensitive values in `app.json` -> `expo.extra` (or provide via build-time env).
