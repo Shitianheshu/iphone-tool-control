@@ -584,7 +584,7 @@ export default function App() {
   );
 }
 
-const RadioChip = ({ label, selected, onPress, BgColor='#1D78FF' }) => {
+const RadioChip = ({ label, selected, onPress, BgColor='white' }) => {
 
 const style = StyleSheet.create({
   chip: {
@@ -601,7 +601,7 @@ const style = StyleSheet.create({
   chipSelected: {
     borderColor: '#1D78FF',
   },
-  chipText: { fontSize: 12, color: '#334155', fontWeight: '700' },
+  chipText: { fontSize: 12, color: BgColor=="white" ? '#334155': 'white', fontWeight: '700' },
   chipTextSelected: { color: '#FFFFFF' },
 });
 
