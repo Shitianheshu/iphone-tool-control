@@ -93,6 +93,27 @@ export default function App() {
     };
   }, [scheme]);
 
+  const COLOR_GROUPS = [
+    {
+      title: 'iPhone 16',
+      colors: [
+        { key: '0', label: 'ウルトラマリン' },
+        { key: '1', label: 'ティール' },
+        { key: '2', label: 'ピンク' },
+        { key: '3', label: 'ホワイト' },
+        { key: '4', label: 'ブラック' }
+      ]
+    },
+    {
+      title: 'iPhone 17 Pro',
+      colors: [
+        { key: '5', label: 'シルバー' },
+        { key: '6', label: 'コズミックオレンジ' },
+        { key: '7', label: 'ディープブルー' }
+      ]
+    }
+  ];
+
   useEffect(() => {
     // Debug-only: helps confirm Expo runtime successfully loaded `app.json` -> `extra`.
     // We log only a suffix to avoid leaking the full secret.
@@ -302,7 +323,7 @@ export default function App() {
 
               <Divider style={styles.divider} />
 
-              <PaperText style={styles.label}>PC 選択</PaperText>
+              {/* <PaperText style={styles.label}>PC 選択</PaperText>
               <View style={styles.rowWrap}>
                 {['1', '2', '3', '4', 'all'].map(v => (
                   <RadioChip
@@ -360,9 +381,9 @@ export default function App() {
                     autoCorrect={false}
                   />
                 </>
-              )}
+              )} */}
 
-              <Divider style={styles.divider} />
+              {/* <Divider style={styles.divider} /> */}
 
               <PaperText style={styles.label}>モデル</PaperText>
               <View style={styles.rowWrap}>
@@ -383,17 +404,28 @@ export default function App() {
                 ))}
               </View>
 
-              <PaperText style={styles.label}>ストレージ</PaperText>
-              <View style={styles.rowWrap}>
-                {['0', '1', '2', '3'].map(v => (
-                  <RadioChip
-                    key={v}
-                    label={`${Number(v) + 1}`}
-                    selected={storageOption === v}
-                    onPress={() => setStorageOption(v)}
-                  />
-                ))}
-              </View>
+              <PaperText style={styles.label}>カラー</PaperText>
+
+              {COLOR_GROUPS.map(group => (
+                <View key={group.title} style={{ marginBottom: 10 }}>
+                  {/* グループタイトル */}
+                  <PaperText style={{ fontSize: 12, opacity: 0.7 }}>
+                    {group.title}
+                  </PaperText>
+
+                  {/* カラー一覧 */}
+                  <View style={styles.rowWrap}>
+                    {group.colors.map(c => (
+                      <RadioChip
+                        key={c.key}
+                        label={c.label}
+                        selected={colorOption === c.key}
+                        onPress={() => setColorOption(c.key)}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ))}
 
               <PaperText style={styles.label}>注文個数</PaperText>
               <View style={styles.rowWrap}>
@@ -440,7 +472,7 @@ export default function App() {
                     key={s.v}
                     label={s.l}
                     selected={storeOption === s.v}
-                    onPress={() => {setStoreOption(s.v);setZipCode(s.zip)}}
+                    onPress={() => { setStoreOption(s.v); setZipCode(s.zip) }}
                   />
                 ))}
               </View>
