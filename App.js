@@ -395,19 +395,6 @@ export default function App() {
               </View>
 
               <PaperText style={styles.label}>カラー</PaperText>
-              <View style={styles.rowWrap}>
-                {['0', '1', '2', '3'].map(v => (
-                  <RadioChip
-                    key={v}
-                    label={`${Number(v) + 1}`}
-                    selected={colorOption === v}
-                    onPress={() => setColorOption(v)}
-                  />
-                ))}
-              </View>
-
-              <PaperText style={styles.label}>カラー</PaperText>
-
               {COLOR_GROUPS.map(group => (
                 <View key={group.title} style={{ marginBottom: 10 }}>
                   {/* グループタイトル */}
@@ -424,7 +411,7 @@ export default function App() {
                         selected={colorOption === c.key}
                         onPress={() => setColorOption(c.key)}
                         style={{
-                          backgroundColor: c.value, 
+                          backgroundColor: c.value,
                           borderWidth: 1,
                           borderColor: '#ccc'
                         }}
@@ -433,6 +420,19 @@ export default function App() {
                   </View>
                 </View>
               ))}
+
+              <PaperText style={styles.label}>ストレージ</PaperText>
+              <View style={styles.rowWrap}>
+                {['0', '1', '2', '3'].map(v => (
+                  <RadioChip
+                    key={v}
+                    label={`${Number(v) + 1}`}
+                    selected={storageOption === v}
+                    onPress={() => setStorageOption(v)}
+                  />
+                ))}
+              </View>
+              
 
               <PaperText style={styles.label}>注文個数</PaperText>
               <View style={styles.rowWrap}>
