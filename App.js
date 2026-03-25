@@ -366,8 +366,8 @@ export default function App() {
 
               <PaperText style={styles.label}>モデル</PaperText>
               <View style={styles.rowWrap}>
-                <RadioChip label="iphone (1)" selected={modelOption === '0'} onPress={() => setModelOption('0')} />
-                <RadioChip label="iphone (2)" selected={modelOption === '1'} onPress={() => setModelOption('1')} />
+                <RadioChip label="iphone 小さい" selected={modelOption === '0'} onPress={() => setModelOption('0')} />
+                <RadioChip label="iphone 大きい" selected={modelOption === '1'} onPress={() => setModelOption('1')} />
                 <RadioChip label="スキップ" selected={modelOption === 'skip'} onPress={() => setModelOption('skip')} />
               </View>
 
