@@ -394,7 +394,7 @@ export default function App() {
                 <RadioChip label="スキップ" selected={modelOption === 'skip'} onPress={() => setModelOption('skip')} />
               </View>
 
-              <PaperText style={styles.label}>カラー11</PaperText>
+              <PaperText style={styles.label}>カラー</PaperText>
               {COLOR_GROUPS.map(group => (
                 <View key={group.title} style={{ marginBottom: 10 }}>
                   <PaperText style={{ fontSize: 12, opacity: 0.7 }}>
