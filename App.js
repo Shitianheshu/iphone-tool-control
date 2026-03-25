@@ -588,7 +588,7 @@ const RadioChip = ({ label, selected, onPress, BgColor='white' }) => {
 const style = StyleSheet.create({
   chip: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderRadius: 999,
     borderWidth: 1,
     background:BgColor,
@@ -601,7 +601,7 @@ const style = StyleSheet.create({
     borderColor: '#1D78FF',
   },
   chipText: { fontSize: 12, color: BgColor=="white" ? '#334155': 'white', fontWeight: '700' },
-  chipTextSelected: { color: '#FFFFFF' },
+  chipTextSelected: { color: '#334155' },
 });
 
   return  <TouchableOpacity
