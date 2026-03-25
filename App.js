@@ -405,7 +405,6 @@ export default function App() {
                     {group.colors.map(c => (
                       <RadioChip
                         key={c.key}
-                        label={c.label}
                         selected={colorOption === c.key}
                         onPress={() => setColorOption(c.key)}
                         BgColor={c.value}
