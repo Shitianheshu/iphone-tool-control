@@ -408,11 +408,7 @@ export default function App() {
                         label={c.label}
                         selected={colorOption === c.key}
                         onPress={() => setColorOption(c.key)}
-                        style={{
-                          backgroundColor: c.value,
-                          borderWidth: 1,
-                          borderColor: '#ccc'
-                        }}
+                        BgColor={c.value}
                       />
                     ))}
                   </View>
@@ -588,7 +584,7 @@ export default function App() {
   );
 }
 
-const RadioChip = ({ label, selected, onPress }) => (
+const RadioChip = ({ label, selected, onPress, BgColor='#1D78FF' }) => (
   <TouchableOpacity
     accessibilityRole="button"
     accessibilityState={{ selected }}
@@ -635,8 +631,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   chipSelected: {
-    backgroundColor: '#1D78FF',
-    borderColor: '#1D78FF',
+    backgroundColor: BgColor,
+    borderColor: BgColor,
   },
   chipText: { fontSize: 12, color: '#334155', fontWeight: '700' },
   chipTextSelected: { color: '#FFFFFF' },
