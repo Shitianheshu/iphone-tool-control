@@ -206,7 +206,7 @@ export default function App() {
       <SafeAreaView style={[styles.container, { backgroundColor: paperTheme.colors.background }]}>
         <Appbar.Header>
           <Appbar.Content
-            title="iPhone 自動購入モニター"
+            title="iPhone 自動購入モニター 2.0"
             subtitle={status?.running ? '稼働中' : '停止中'}
           />
         </Appbar.Header>
