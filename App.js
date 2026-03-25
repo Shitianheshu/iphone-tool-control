@@ -588,7 +588,7 @@ const RadioChip = ({ label, selected, onPress, BgColor='#1D78FF' }) => (
   <TouchableOpacity
     accessibilityRole="button"
     accessibilityState={{ selected }}
-    style={[styles.chip, selected && { backgroundColor: BgColor }]}
+    style={[{background:BgColor}, selected && styles.chipSelected]}
     onPress={onPress}
   >
     <PaperText style={[styles.chipText, selected && styles.chipTextSelected]}>
