@@ -63,6 +63,8 @@ export default function App() {
   const [deliveryOption, setDeliveryOption] = useState('delivery'); // delivery, convenienceStore, appleStore
 
   const [storeOption, setStoreOption] = useState('R005'); // R005, R224, ...
+  const [zipCode, setZipCode] = useState('460-0008'); // R005, R224, ...
+
 
   const [payOption, setPayOption] = useState('creditcard'); // creditcard, bank
   const [confirmOption, setConfirmOption] = useState('true'); // true, false
@@ -141,6 +143,7 @@ export default function App() {
       const parsedMonitoringInterval = Number.parseInt(storeMonitoringInterval, 10);
       const body = {
         itemUrl,
+        zipCode,
         spreadsheetId,
         pcSelection,
         spreadsheetKey: spreadsheetKey1,
@@ -286,7 +289,7 @@ export default function App() {
               <PaperText style={styles.sectionTitle}>設定</PaperText>
               <Divider style={styles.divider} />
 
-            
+
 
               <PaperText style={styles.label}>Google スプレッドシートURL（共通）</PaperText>
               <TextInput
@@ -363,8 +366,8 @@ export default function App() {
 
               <PaperText style={styles.label}>モデル</PaperText>
               <View style={styles.rowWrap}>
-                <RadioChip label="1" selected={modelOption === '0'} onPress={() => setModelOption('0')} />
-                <RadioChip label="2" selected={modelOption === '1'} onPress={() => setModelOption('1')} />
+                <RadioChip label="iphone (1)" selected={modelOption === '0'} onPress={() => setModelOption('0')} />
+                <RadioChip label="iphone (2)" selected={modelOption === '1'} onPress={() => setModelOption('1')} />
                 <RadioChip label="スキップ" selected={modelOption === 'skip'} onPress={() => setModelOption('skip')} />
               </View>
 
@@ -422,21 +425,22 @@ export default function App() {
               <PaperText style={styles.label}>対象ストア</PaperText>
               <View style={styles.rowWrap}>
                 {[
-                  { v: 'R005', l: '名古屋栄' },
-                  { v: 'R224', l: '表参道' },
-                  { v: 'R119', l: '渋谷' },
-                  { v: 'R718', l: '丸の内' },
-                  { v: 'R128', l: '新宿' },
-                  { v: 'R710', l: '川崎' },
-                  { v: 'R091', l: '心斎橋' },
-                  { v: 'R711', l: '京都' },
-                  { v: 'R079', l: '銀座' },
+                  { v: 'R718', l: '丸の内', zip: '100-0005' },
+                  { v: 'R079', l: '銀座', zip: '104-0061' },
+                  { v: 'R224', l: '表参道', zip: '150-0001' },
+                  { v: 'R768', l: '梅田', zip: '530-0011' },
+                  { v: 'R091', l: '心斎橋', zip: '542-0085' },
+                  { v: 'R005', l: '名古屋栄', zip: '460-0008' },
+                  { v: 'R119', l: '渋谷', zip: '150-0042' },
+                  { v: 'R128', l: '新宿', zip: '160-0022' },
+                  { v: 'R710', l: '川崎', zip: '210-0007' },
+                  { v: 'R711', l: '京都', zip: '600-8005' }
                 ].map(s => (
                   <RadioChip
                     key={s.v}
                     label={s.l}
                     selected={storeOption === s.v}
-                    onPress={() => setStoreOption(s.v)}
+                    onPress={() => {setStoreOption(s.v);setZipCode(s.zip)}}
                   />
                 ))}
               </View>
