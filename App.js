@@ -394,7 +394,7 @@ export default function App() {
                 <RadioChip label="スキップ" selected={modelOption === 'skip'} onPress={() => setModelOption('skip')} />
               </View>
 
-              <PaperText style={styles.label}>カラー</PaperText>
+              <PaperText style={styles.label}>カラー11</PaperText>
               {COLOR_GROUPS.map(group => (
                 <View key={group.title} style={{ marginBottom: 10 }}>
                   <PaperText style={{ fontSize: 12, opacity: 0.7 }}>
@@ -588,7 +588,7 @@ const RadioChip = ({ label, selected, onPress, BgColor='#1D78FF' }) => (
   <TouchableOpacity
     accessibilityRole="button"
     accessibilityState={{ selected }}
-    style={[styles.chip, selected && styles.chipSelected]}
+    style={[styles.chip, selected && { backgroundColor: BgColor }]}
     onPress={onPress}
   >
     <PaperText style={[styles.chipText, selected && styles.chipTextSelected]}>
@@ -631,8 +631,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   chipSelected: {
-    backgroundColor: BgColor,
-    borderColor: BgColor,
+    backgroundColor: '#1D78FF',
+    borderColor: '#1D78FF',
   },
   chipText: { fontSize: 12, color: '#334155', fontWeight: '700' },
   chipTextSelected: { color: '#FFFFFF' },
