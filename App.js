@@ -584,18 +584,7 @@ export default function App() {
   );
 }
 
-const RadioChip = ({ label, selected, onPress, BgColor='#1D78FF' }) => (
-  <TouchableOpacity
-    accessibilityRole="button"
-    accessibilityState={{ selected }}
-    style={[{background:BgColor}, selected && styles.chipSelected]}
-    onPress={onPress}
-  >
-    <PaperText style={[styles.chipText, selected && styles.chipTextSelected]}>
-      {label}
-    </PaperText>
-  </TouchableOpacity>
-);
+const RadioChip = ({ label, selected, onPress, BgColor='#1D78FF' }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -625,13 +614,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#1D78FF',
+    background:BgColor,
+    borderColor:'#A9B3C7',
     backgroundColor: 'transparent',
     marginBottom: 8,
     marginRight: 8,
   },
   chipSelected: {
-    backgroundColor: '#1D78FF',
     borderColor: '#1D78FF',
   },
   chipText: { fontSize: 12, color: '#334155', fontWeight: '700' },
@@ -662,4 +651,18 @@ const styles = StyleSheet.create({
   sessionUpdated: { marginTop: 8, fontSize: 11, opacity: 0.65 },
   emptyText: { opacity: 0.75, fontWeight: '600' },
 });
+
+  return  <TouchableOpacity
+    accessibilityRole="button"
+    accessibilityState={{ selected }}
+    style={[styles.chip, selected && styles.chipSelected]}
+    onPress={onPress}
+  >
+    <PaperText style={[styles.chipText, selected && styles.chipTextSelected]}>
+      {label}
+    </PaperText>
+  </TouchableOpacity>
+
+}
+
 
