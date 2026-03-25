@@ -109,9 +109,9 @@ export default function App() {
     {
       title: 'iPhone 17 Pro',
       colors: [
-        { key: '5', label: 'シルバー', value: '#f5f5f7' },
-        { key: '6', label: 'コズミックオレンジ', value: '#f77e39' },
-        { key: '7', label: 'ディープブルー', value: '#45517b' }
+        { key: '0', label: 'シルバー', value: '#f5f5f7' },
+        { key: '1', label: 'コズミックオレンジ', value: '#f77e39' },
+        { key: '2', label: 'ディープブルー', value: '#45517b' }
       ]
     }
   ];
