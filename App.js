@@ -93,23 +93,25 @@ export default function App() {
     };
   }, [scheme]);
 
+  // ======================= カラー（値付き） =======================
+
   const COLOR_GROUPS = [
     {
       title: 'iPhone 16',
       colors: [
-        { key: '0', label: 'ウルトラマリン' },
-        { key: '1', label: 'ティール' },
-        { key: '2', label: 'ピンク' },
-        { key: '3', label: 'ホワイト' },
-        { key: '4', label: 'ブラック' }
+        { key: '0', label: 'ウルトラマリン', value: '#9fb2f6' },
+        { key: '1', label: 'ティール', value: '#b5d7d6' },
+        { key: '2', label: 'ピンク', value: '#f4b1dc' },
+        { key: '3', label: 'ホワイト', value: '#fafafa' },
+        { key: '4', label: 'ブラック', value: '#000000' }
       ]
     },
     {
       title: 'iPhone 17 Pro',
       colors: [
-        { key: '5', label: 'シルバー' },
-        { key: '6', label: 'コズミックオレンジ' },
-        { key: '7', label: 'ディープブルー' }
+        { key: '5', label: 'シルバー', value: '#f5f5f7' },
+        { key: '6', label: 'コズミックオレンジ', value: '#f77e39' },
+        { key: '7', label: 'ディープブルー', value: '#45517b' }
       ]
     }
   ];
@@ -421,6 +423,11 @@ export default function App() {
                         label={c.label}
                         selected={colorOption === c.key}
                         onPress={() => setColorOption(c.key)}
+                        style={{
+                          backgroundColor: c.value, 
+                          borderWidth: 1,
+                          borderColor: '#ccc'
+                        }}
                       />
                     ))}
                   </View>
