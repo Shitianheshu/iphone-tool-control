@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   SafeAreaView,
-  Platform,
   View,
   TouchableOpacity,
   ScrollView,
@@ -30,13 +29,95 @@ const EXPO_EXTRA =
   // Fallback for some Expo runtimes/dev modes
   Constants.manifest?.extra ??
   {};
-// Vercel(Web)では `EXPO_PUBLIC_*`、Expo Native では `expo.extra` を優先利用する。
-const SERVER_BASE_URL =
-  process.env.EXPO_PUBLIC_SERVER_BASE_URL ?? EXPO_EXTRA.SERVER_BASE_URL;
+// API は Electron 側 `main.js` の Express（既定: http://localhost:3000）
+const API_ORIGIN = process.env.EXPO_PUBLIC_SERVER_BASE_URL ?? EXPO_EXTRA.SERVER_BASE_URL;;
 const API_KEY = process.env.EXPO_PUBLIC_API_KEY ?? EXPO_EXTRA.API_KEY;
-const API_BASE_URL = Platform.OS === 'web' ? '' : SERVER_BASE_URL;
 
-const CONFIG_OK = Boolean((API_BASE_URL || Platform.OS === 'web') && API_KEY);
+const CONFIG_OK = Boolean(API_KEY);
+
+// ======================= iPhone kind / color master =======================
+const COLOR_GROUPS = [
+  {
+    title: 'iPhone 16',
+    key: 'iphone-16',
+    colors: [
+      { key: '0', label: 'ウルトラマリン', value: '#9fb2f6' },
+      { key: '1', label: 'ティール', value: '#b5d7d6' },
+      { key: '2', label: 'ピンク', value: '#f4b1dc' },
+      { key: '3', label: 'ホワイト', value: '#fafafa' },
+      { key: '4', label: 'ブラック', value: '#000000' },
+    ],
+  },
+  {
+    title: 'iPhone 17 Pro',
+    key: 'iphone-17-pro',
+    colors: [
+      { key: '0', label: 'シルバー', value: '#f5f5f7' },
+      { key: '1', label: 'コズミックオレンジ', value: '#f77e39' },
+      { key: '2', label: 'ディープブルー', value: '#45517b' },
+    ],
+  },
+];
+
+const PERSONAL_FIELDS = [
+  { key: 'lastName', label: '姓（ローマ字）' },
+  { key: 'firstName', label: '名（ローマ字）' },
+  { key: 'postalCode', label: '郵便番号' },
+  { key: 'state', label: '都道府県（コード）' },
+  { key: 'city', label: '市区町村' },
+  { key: 'street', label: '住所1' },
+  { key: 'street2', label: '住所2' },
+  { key: 'emailAddress', label: 'メールアドレス' },
+  { key: 'mobilePhone', label: '携帯電話' },
+  { key: 'cardNumber', label: 'カード番号' },
+  { key: 'expiration', label: '有効期限（MM/YY）' },
+  { key: 'securityCode', label: 'セキュリティコード' },
+  { key: 'appleId', label: 'Apple ID' },
+  { key: 'applePassword', label: 'Apple パスワード' },
+];
+
+const STORE_OPTIONS = [
+  { v: 'R718', l: '丸の内', zip: '100-0005' },
+  { v: 'R079', l: '銀座', zip: '104-0061' },
+  { v: 'R224', l: '表参道', zip: '150-0001' },
+  { v: 'R768', l: '梅田', zip: '530-0011' },
+  { v: 'R091', l: '心斎橋', zip: '542-0085' },
+  { v: 'R005', l: '名古屋栄', zip: '460-0008' },
+  { v: 'R119', l: '渋谷', zip: '150-0042' },
+  { v: 'R128', l: '新宿', zip: '160-0022' },
+  { v: 'R710', l: '川崎', zip: '210-0007' },
+  { v: 'R711', l: '京都', zip: '600-8005' },
+];
+
+const LS_KEYS = {
+  personalInfo: 'iphoneAutoPurchase.personalInfo.v1',
+  iphoneRows: 'iphoneAutoPurchase.iphoneRows.v1',
+  flowStep: 'iphoneAutoPurchase.flowStep.v1',
+};
+
+function canUseLocalStorage() {
+  try {
+    return typeof globalThis !== 'undefined' && Boolean(globalThis.localStorage);
+  } catch {
+    return false;
+  }
+}
+
+function lsGet(key) {
+  try {
+    return globalThis.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function lsSet(key, value) {
+  try {
+    globalThis.localStorage.setItem(key, value);
+  } catch {
+    // ignore
+  }
+}
 
 export default function App() {
   // ===== index.html のフォームに対応するステート =====
@@ -71,6 +152,24 @@ export default function App() {
 
   const [storeMonitoringInterval, setStoreMonitoringInterval] = useState('10');
 
+  // ===== 3-step flow state =====
+  const [flowStep, setFlowStep] = useState(1); // 1: personal, 2: iphone, 3: confirm
+  const [personalDraft, setPersonalDraft] = useState(() =>
+    Object.fromEntries(PERSONAL_FIELDS.map(f => [f.key, ''])),
+  );
+  const [personalInfo, setPersonalInfo] = useState(null); // stored once Step1 Next
+
+  const [iphoneKind, setIphoneKind] = useState(COLOR_GROUPS?.[0]?.title ?? 'iPhone 16');
+  const [iphoneKindKey, setIphoneKindKey] = useState(COLOR_GROUPS?.[0]?.key ?? 'iphone-16');
+  const [iphoneColorKey, setIphoneColorKey] = useState('0');
+  const [iphoneModelOption, setIphoneModelOption] = useState('0'); // 0: mini/pro, 1: plus/max (per family)
+  const [iphoneIdDraft, setIphoneIdDraft] = useState('');
+  const [iphoneRows, setIphoneRows] = useState([]); // [{id, iphoneKind, iphoneColorKey, iphone_id, quantityOption, deliveryOption, storeOption, zipCode, payOption, confirmOption, storeMonitoringInterval, createdAt}]
+  const [editingIphoneRowId, setEditingIphoneRowId] = useState(null);
+  const [expandedIphoneRowId, setExpandedIphoneRowId] = useState(null);
+  const [isAppending, setIsAppending] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
   // ===== サーバーからのステータス =====
   const [status, setStatus] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
@@ -93,28 +192,96 @@ export default function App() {
     };
   }, [scheme]);
 
-  // ======================= カラー（値付き） =======================
+  const currentColorGroup = useMemo(() => {
+    const found = COLOR_GROUPS.find(g => g.title === iphoneKind);
+    return found ?? COLOR_GROUPS[0];
+  }, [iphoneKind]);
 
-  const COLOR_GROUPS = [
-    {
-      title: 'iPhone 16',
-      colors: [
-        { key: '0', label: 'ウルトラマリン', value: '#9fb2f6' },
-        { key: '1', label: 'ティール', value: '#b5d7d6' },
-        { key: '2', label: 'ピンク', value: '#f4b1dc' },
-        { key: '3', label: 'ホワイト', value: '#fafafa' },
-        { key: '4', label: 'ブラック', value: '#000000' }
-      ]
-    },
-    {
-      title: 'iPhone 17 Pro',
-      colors: [
-        { key: '0', label: 'シルバー', value: '#f5f5f7' },
-        { key: '1', label: 'コズミックオレンジ', value: '#f77e39' },
-        { key: '2', label: 'ディープブルー', value: '#45517b' }
-      ]
+  const getColorLabel = useCallback((kind, colorKey) => {
+    const g = COLOR_GROUPS.find(x => x.title === kind);
+    const c = g?.colors?.find(x => x.key === String(colorKey));
+    return c?.label ?? `カラー${String(colorKey)}`;
+  }, []);
+
+  const autoFillAddressByPostalCode = useCallback(async () => {
+    const rawZip = String(personalDraft.postalCode ?? '').replace(/-/g, '').trim();
+    if (!rawZip || rawZip.length !== 7) {
+      setErrorMessage('郵便番号は7桁で入力してください（例: 4600008）。');
+      return;
     }
-  ];
+
+    try {
+      setErrorMessage(null);
+      const res = await axios.get(`${API_ORIGIN}/zipSearch`, {
+        params: { zipcode: rawZip },
+      });
+      const item = res?.data?.results?.[0];
+      if (!item) {
+        setErrorMessage('該当する住所が見つかりませんでした。');
+        return;
+      }
+
+      // zipcloud: address1=都道府県, address2=市区町村, address3=町名
+      setPersonalDraft(prev => ({
+        ...prev,
+        state: item.address1 ?? prev.state,
+        city: item.address2 ?? prev.city,
+        street: item.address3 ?? prev.street,
+        street2: '',
+      }));
+    } catch (err) {
+      setErrorMessage(err?.message || '住所自動入力に失敗しました。');
+    }
+  }, [personalDraft.postalCode]);
+
+  const getStorageLabel = useCallback((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? `${n + 1}` : '-';
+  }, []);
+
+  const getQuantityLabel = useCallback((v) => {
+    if (v === undefined || v === null || v === '') return '-';
+    return String(v);
+  }, []);
+
+  const getDeliveryLabel = useCallback((v) => {
+    if (v === 'delivery') return '郵送';
+    if (v === 'convenienceStore') return 'コンビニ';
+    if (v === 'appleStore') return 'Apple Store';
+    return String(v ?? '-');
+  }, []);
+
+  const getStoreLabel = useCallback((v) => {
+    const s = STORE_OPTIONS.find(x => x.v === v);
+    return s?.l ?? String(v ?? '-');
+  }, []);
+
+  const getPayLabel = useCallback((v) => {
+    if (v === 'creditcard') return 'クレカ';
+    if (v === 'bank') return '銀行振込';
+    return String(v ?? '-');
+  }, []);
+
+  const getConfirmLabel = useCallback((v) => {
+    if (v === 'true') return '有効';
+    if (v === 'false') return '無効';
+    return String(v ?? '-');
+  }, []);
+
+  const getModelLabel = useCallback((kind, v) => {
+    const m = String(v ?? '0');
+    if (kind === 'iPhone 16') return m === '0' ? 'iPhone 16' : 'iPhone 16 Plus';
+    if (kind === 'iPhone 17 Pro') return m === '0' ? 'iPhone 17 Pro' : 'iPhone 17 Pro Max';
+    return m;
+  }, []);
+
+
+  useEffect(() => {
+    // For "add new row": auto-fill iphone_id from selections.
+    if (editingIphoneRowId) return;
+    const derived = iphoneKindKey;
+    if (derived) setIphoneIdDraft(derived);
+  }, [iphoneKindKey, iphoneModelOption, editingIphoneRowId]);
 
   useEffect(() => {
     // Debug-only: helps confirm Expo runtime successfully loaded `app.json` -> `extra`.
@@ -123,7 +290,7 @@ export default function App() {
     // eslint-disable-next-line no-console
     console.log('[mobile-config]', {
       ok: CONFIG_OK,
-      serverBaseUrl: API_BASE_URL || '(same-origin proxy)',
+      apiOrigin: API_ORIGIN,
       apiKeySuffix,
     });
   }, []);
@@ -131,11 +298,11 @@ export default function App() {
   const fetchStatus = useCallback(async () => {
     try {
       if (!CONFIG_OK) {
-        setErrorMessage('設定エラー: SERVER_BASE_URL または API_KEY が見つかりません。');
+        setErrorMessage('設定エラー: API_KEY が見つかりません。');
         setStatus(null);
         return;
       }
-      const res = await axios.get(`${API_BASE_URL}/status`, {
+      const res = await axios.get(`${API_ORIGIN}/status`, {
         headers: { 'x-api-key': API_KEY },
       });
       setStatus(res.data);
@@ -154,10 +321,67 @@ export default function App() {
     return () => clearInterval(id);
   }, [fetchStatus, status?.running]);
 
+  // ===== Persist / restore Step1+Step2 inputs =====
+  useEffect(() => {
+    if (!canUseLocalStorage()) return;
+
+    const rawPersonal = lsGet(LS_KEYS.personalInfo);
+    if (rawPersonal) {
+      try {
+        const parsed = JSON.parse(rawPersonal);
+        setPersonalInfo(parsed);
+        setPersonalDraft(parsed);
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    const rawRows = lsGet(LS_KEYS.iphoneRows);
+    if (rawRows) {
+      try {
+        const parsed = JSON.parse(rawRows);
+        if (Array.isArray(parsed)) setIphoneRows(parsed);
+      } catch {
+        // ignore
+      }
+    }
+
+    const rawFlow = lsGet(LS_KEYS.flowStep);
+    if (rawFlow) {
+      const n = Number(rawFlow);
+      if (n === 1 || n === 2 || n === 3) setFlowStep(n);
+    } else if (rawPersonal) {
+      setFlowStep(2);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!canUseLocalStorage()) return;
+    if (personalInfo) lsSet(LS_KEYS.personalInfo, JSON.stringify(personalInfo));
+    else lsSet(LS_KEYS.personalInfo, '');
+  }, [personalInfo]);
+
+  useEffect(() => {
+    if (!canUseLocalStorage()) return;
+    lsSet(LS_KEYS.iphoneRows, JSON.stringify(iphoneRows));
+  }, [iphoneRows]);
+
+  useEffect(() => {
+    if (!canUseLocalStorage()) return;
+    lsSet(LS_KEYS.flowStep, String(flowStep));
+  }, [flowStep]);
+
+  // If user switches back to Step 1, show saved personal info
+  useEffect(() => {
+    if (flowStep === 1 && personalInfo) {
+      setPersonalDraft(personalInfo);
+    }
+  }, [flowStep, personalInfo]);
+
   const handleStart = async () => {
     try {
       if (!CONFIG_OK) {
-        setErrorMessage('設定エラー: SERVER_BASE_URL または API_KEY が見つかりません。');
+        setErrorMessage('設定エラー: API_KEY が見つかりません。');
         return;
       }
       setIsStarting(true);
@@ -188,7 +412,7 @@ export default function App() {
         workerId: 'mobile',
       };
 
-      await axios.post(`${API_BASE_URL}/start`, body, {
+      await axios.post(`${API_ORIGIN}/start`, body, {
         headers: { 'x-api-key': API_KEY },
       });
       await fetchStatus();
@@ -201,16 +425,283 @@ export default function App() {
     }
   };
 
+  const upsertIphoneRow = useCallback(() => {
+    const now = Date.now();
+    const rowId = editingIphoneRowId ?? `iphone-${now}`;
+    const existing = iphoneRows.find(r => r.id === rowId);
+
+    // Derive the required Apple URL slug from the selections.
+    // This avoids relying on iphoneIdDraft timing/state lag.
+    const derivedIphoneId = iphoneKindKey;
+
+    const next = {
+      id: rowId,
+      iphoneKind,
+      iphoneKindKey,
+      iphoneColorKey,
+      iphone_id: derivedIphoneId || iphoneIdDraft,
+      modelOption: String(iphoneModelOption),
+      colorOption: String(iphoneColorKey),
+      storageOption,
+      quantityOption,
+      deliveryOption,
+      storeOption,
+      zipCode,
+      payOption,
+      confirmOption,
+      storeMonitoringInterval,
+      rowNum: existing?.rowNum,
+      createdAt: now,
+    };
+
+    setIphoneRows(prev => {
+      const exists = prev.some(r => r.id === rowId);
+      if (exists) return prev.map(r => (r.id === rowId ? next : r));
+      return [next, ...prev];
+    });
+    setEditingIphoneRowId(null);
+    setIphoneIdDraft('');
+    setExpandedIphoneRowId(null);
+    return next;
+  }, [
+    editingIphoneRowId,
+    iphoneKind,
+    iphoneKindKey,
+    iphoneColorKey,
+    iphoneModelOption,
+    iphoneIdDraft,
+    storageOption,
+    quantityOption,
+    deliveryOption,
+    storeOption,
+    zipCode,
+    payOption,
+    confirmOption,
+    storeMonitoringInterval,
+    iphoneRows,
+  ]);
+
+  const editIphoneRow = useCallback((row) => {
+    setEditingIphoneRowId(row.id);
+    setIphoneKind(row.iphoneKind);
+    const kindKey =
+      row.iphoneKindKey ??
+      (COLOR_GROUPS.find(g => g.title === row.iphoneKind)?.key ?? '');
+    if (kindKey) setIphoneKindKey(String(kindKey));
+    setIphoneColorKey(row.iphoneColorKey);
+    if (row.modelOption !== undefined) setIphoneModelOption(String(row.modelOption));
+    setIphoneIdDraft(row.iphone_id ?? '');
+    if (row.storageOption !== undefined) setStorageOption(String(row.storageOption));
+    if (row.quantityOption !== undefined) setQuantityOption(String(row.quantityOption));
+    if (row.deliveryOption !== undefined) setDeliveryOption(String(row.deliveryOption));
+    if (row.storeOption !== undefined) setStoreOption(String(row.storeOption));
+    if (row.zipCode !== undefined) setZipCode(String(row.zipCode));
+    if (row.payOption !== undefined) setPayOption(String(row.payOption));
+    if (row.confirmOption !== undefined) setConfirmOption(String(row.confirmOption));
+    if (row.storeMonitoringInterval !== undefined) setStoreMonitoringInterval(String(row.storeMonitoringInterval));
+    setFlowStep(2);
+  }, []);
+
+  const deleteIphoneRow = useCallback(async (row) => {
+    const rowId = row?.id;
+    if (!rowId) return;
+
+    try {
+      if (row.rowNum && spreadsheetKey1) {
+        await axios.post(
+          `${API_ORIGIN}/deleteRow`,
+          { spreadsheetId: spreadsheetKey1, sheetName: 'list', rowNum: row.rowNum },
+          { headers: { 'x-api-key': API_KEY } },
+        );
+      }
+      setIphoneRows(prev => prev.filter(r => r.id !== rowId));
+      if (editingIphoneRowId === rowId) {
+        setEditingIphoneRowId(null);
+        setIphoneIdDraft('');
+        setExpandedIphoneRowId(null);
+      }
+    } catch (err) {
+      const serverError =
+        err?.response?.data?.error || err?.response?.data?.message || err?.message;
+      setErrorMessage(serverError || '削除に失敗しました。');
+    }
+  }, [editingIphoneRowId, spreadsheetKey1]);
+
+  const appendIphoneRowsToSpreadsheet = useCallback(async () => {
+    if (!CONFIG_OK) {
+      setErrorMessage('設定エラー: API_KEY が見つかりません。');
+      return false;
+    }
+    if (!personalInfo) {
+      setErrorMessage('Step 1 の個人情報が未保存です。');
+      return false;
+    }
+    if (!spreadsheetKey1) {
+      setErrorMessage('スプレッドシートキー(PC1)が未設定です。');
+      return false;
+    }
+    if (!iphoneRows.length) {
+      setErrorMessage('Step 2 のiPhone情報が未追加です。');
+      return false;
+    }
+
+    const rowsToAppend = iphoneRows.filter(r => !r.rowNum);
+    if (!rowsToAppend.length) {
+      // Everything already appended, so just continue to Step 3
+      return true;
+    }
+
+    setIsAppending(true);
+    setErrorMessage(null);
+
+    try {
+      const rows = rowsToAppend.map(r => ({
+        ...personalInfo,
+        iphone_id: r.iphone_id,
+        modelOption: r.modelOption ?? (r.iphoneKind === 'iPhone 16' ? '0' : '1'),
+        colorOption: r.colorOption ?? String(r.iphoneColorKey ?? '0'),
+        storageOption: r.storageOption ?? storageOption,
+        quantityOption: r.quantityOption ?? quantityOption,
+        deliveryOption: r.deliveryOption ?? deliveryOption,
+        storeOption: r.storeOption ?? storeOption,
+        zipCode: r.zipCode ?? zipCode,
+        payOption: r.payOption ?? payOption,
+        confirmOption: r.confirmOption ?? confirmOption,
+        storeMonitoringInterval: r.storeMonitoringInterval ?? storeMonitoringInterval,
+        // fields that exist in sheet but are handled by worker later
+        lockDatetime: '',
+        status: '',
+        orderNumber: '',
+      }));
+      console.log('inputRows', rows)
+
+      const resp = await axios.post(
+        `${API_ORIGIN}/appendRows`,
+        { spreadsheetId: spreadsheetKey1, sheetName: 'list', rows },
+        { headers: { 'x-api-key': API_KEY } },
+      );
+
+      const appendedRowNums = resp?.data?.appendedRowNums;
+      if (Array.isArray(appendedRowNums) && appendedRowNums.length) {
+        let cursor = 0;
+        setIphoneRows(prev =>
+          prev.map(r => {
+            if (r.rowNum) return r;
+            const newRowNum = appendedRowNums[cursor];
+            cursor += 1;
+            return { ...r, rowNum: newRowNum ?? r.rowNum };
+          }),
+        );
+      }
+      return true;
+    } catch (err) {
+      const serverError =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message;
+      setErrorMessage(serverError || 'スプレッドシート追加に失敗しました。');
+      return false;
+    } finally {
+      setIsAppending(false);
+    }
+  }, [
+    personalInfo,
+    iphoneRows,
+    spreadsheetKey1,
+    iphoneKind,
+    iphoneColorKey,
+    storageOption,
+    quantityOption,
+    deliveryOption,
+    storeOption,
+    zipCode,
+    payOption,
+    confirmOption,
+    storeMonitoringInterval,
+  ]);
+
+  const updateIphoneRowInSpreadsheet = useCallback(async (row) => {
+    if (!CONFIG_OK) {
+      setErrorMessage('設定エラー: API_KEY が見つかりません。');
+      return false;
+    }
+    if (!personalInfo) {
+      setErrorMessage('Step 1 の個人情報が未保存です。');
+      return false;
+    }
+    if (!spreadsheetKey1) {
+      setErrorMessage('スプレッドシートキー(PC1)が未設定です。');
+      return false;
+    }
+    if (!row?.rowNum) {
+      // Not yet appended to spreadsheet
+      return false;
+    }
+
+    setIsUpdating(true);
+    setErrorMessage(null);
+
+    try {
+      const sheetRow = {
+        ...personalInfo,
+        iphone_id: row.iphone_id,
+        modelOption: row.modelOption ?? '0',
+        colorOption: row.colorOption ?? String(row.iphoneColorKey ?? '0'),
+        storageOption: row.storageOption,
+        quantityOption: row.quantityOption,
+        deliveryOption: row.deliveryOption,
+        storeOption: row.storeOption,
+        zipCode: row.zipCode,
+        payOption: row.payOption,
+        confirmOption: row.confirmOption,
+        storeMonitoringInterval: row.storeMonitoringInterval,
+        lockDatetime: '',
+        status: '',
+        orderNumber: '',
+      };
+
+      const resp = await axios.post(
+        `${API_ORIGIN}/updateRow`,
+        {
+          spreadsheetId: spreadsheetKey1,
+          sheetName: 'list',
+          rowNum: row.rowNum,
+          row: sheetRow,
+        },
+        { headers: { 'x-api-key': API_KEY } },
+      );
+
+      if (resp?.data?.rowNum) {
+        setIphoneRows(prev =>
+          prev.map(r => (r.id === row.id ? { ...r, rowNum: resp.data.rowNum } : r)),
+        );
+      }
+      return true;
+    } catch (err) {
+      const serverError =
+        err?.response?.data?.error || err?.response?.data?.message || err?.message;
+      setErrorMessage(serverError || 'スプレッドシート更新に失敗しました。');
+      return false;
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [
+    personalInfo,
+    spreadsheetKey1,
+    setErrorMessage,
+    setIphoneRows,
+  ]);
+
   const handleStop = async () => {
     try {
       if (!CONFIG_OK) {
-        setErrorMessage('設定エラー: SERVER_BASE_URL または API_KEY が見つかりません。');
+        setErrorMessage('設定エラー: API_KEY が見つかりません。');
         return;
       }
       setIsStopping(true);
       setErrorMessage(null);
       await axios.post(
-        `${API_BASE_URL}/stop`,
+        `${API_ORIGIN}/stop`,
         {},
         { headers: { 'x-api-key': API_KEY } },
       );
@@ -229,7 +720,7 @@ export default function App() {
       <SafeAreaView style={[styles.container, { backgroundColor: paperTheme.colors.background }]}>
         <Appbar.Header>
           <Appbar.Content
-            title="iPhone 自動購入モニター 2.0"
+            title="iPhone 自動購入モニター 3.0"
             subtitle={status?.running ? '稼働中' : '停止中'}
           />
         </Appbar.Header>
@@ -263,9 +754,6 @@ export default function App() {
                   <PaperText style={styles.statLabel}>キュー</PaperText>
                   <PaperText style={styles.statValue}>
                     {status?.queueCountTotal ?? status?.queueCount ?? 0}
-                  </PaperText>
-                  <PaperText style={styles.statSubValue}>
-                    残り: {status?.queueCountPending ?? 0}
                   </PaperText>
                 </View>
                 <View style={styles.statCell}>
@@ -325,19 +813,8 @@ export default function App() {
 
               <Divider style={styles.divider} />
 
-              {/* <PaperText style={styles.label}>PC 選択</PaperText>
-              <View style={styles.rowWrap}>
-                {['1', '2', '3', '4', 'all'].map(v => (
-                  <RadioChip
-                    key={v}
-                    label={v === 'all' ? '全PC' : `PC ${v}`}
-                    selected={pcSelection === v}
-                    onPress={() => setPcSelection(v)}
-                  />
-                ))}
-              </View>
 
-              <PaperText style={styles.label}>表計算キー (PC 1)</PaperText>
+              <PaperText style={styles.label}>表計算キー </PaperText>
               <TextInput
                 mode="outlined"
                 value={spreadsheetKey1}
@@ -346,173 +823,397 @@ export default function App() {
                 autoCorrect={false}
               />
 
-              {(pcSelection === 'all' || pcSelection === '2') && (
-                <>
-                  <PaperText style={styles.label}>表計算キー (PC 2)</PaperText>
-                  <TextInput
-                    mode="outlined"
-                    value={spreadsheetKey2}
-                    onChangeText={setSpreadsheetKey2}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </>
-              )}
 
-              {(pcSelection === 'all' || pcSelection === '3') && (
-                <>
-                  <PaperText style={styles.label}>表計算キー (PC 3)</PaperText>
-                  <TextInput
-                    mode="outlined"
-                    value={spreadsheetKey3}
-                    onChangeText={setSpreadsheetKey3}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </>
-              )}
 
-              {(pcSelection === 'all' || pcSelection === '4') && (
-                <>
-                  <PaperText style={styles.label}>表計算キー (PC 4)</PaperText>
-                  <TextInput
-                    mode="outlined"
-                    value={spreadsheetKey4}
-                    onChangeText={setSpreadsheetKey4}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </>
-              )} */}
+              <Divider style={styles.divider} />
 
-              {/* <Divider style={styles.divider} /> */}
+            </Card.Content>
+          </Card>
 
-              <PaperText style={styles.label}>モデル</PaperText>
+          {/* ===== 3-step flow ===== */}
+          <Card style={styles.card}>
+            <Card.Content>
+              <PaperText style={styles.sectionTitle}>入力フロー</PaperText>
+              <Divider style={styles.divider} />
+
               <View style={styles.rowWrap}>
-                <RadioChip label="iphone 小さい" selected={modelOption === '0'} onPress={() => setModelOption('0')} />
-                <RadioChip label="iphone 大きい" selected={modelOption === '1'} onPress={() => setModelOption('1')} />
-                <RadioChip label="スキップ" selected={modelOption === 'skip'} onPress={() => setModelOption('skip')} />
+                <RadioChip label="ステップ1" selected={flowStep === 1} onPress={() => setFlowStep(1)} />
+                <RadioChip label="ステップ2" selected={flowStep === 2} onPress={() => setFlowStep(2)} />
+                <RadioChip label="ステップ3" selected={flowStep === 3} onPress={() => setFlowStep(3)} />
               </View>
 
-              <PaperText style={styles.label}>カラー11</PaperText>
-              {COLOR_GROUPS.map(group => (
-                <View key={group.title} style={{ marginBottom: 10 }}>
-                  <PaperText style={{ fontSize: 12, opacity: 0.7 }}>
-                    {group.title}
-                  </PaperText>
+              {flowStep === 1 ? (
+                <>
+                  <PaperText style={styles.label}>ステップ1: 個人情報入力</PaperText>
+                  {PERSONAL_FIELDS.map(f => {
+                    if (f.key === 'postalCode') {
+                      return (
+                        <View key={f.key} style={{ marginBottom: 10 }}>
+                          <PaperText style={{ fontSize: 12, opacity: 0.7 }}>{f.label}</PaperText>
+                          <TextInput
+                            mode="outlined"
+                            value={personalDraft[f.key] ?? ''}
+                            onChangeText={(t) =>
+                              setPersonalDraft(prev => ({ ...prev, [f.key]: t }))
+                            }
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            keyboardType="number-pad"
+                          />
+                          <Button
+                            mode="text"
+                            onPress={autoFillAddressByPostalCode}
+                            style={{ alignSelf: 'flex-start', marginTop: 6 }}
+                          >
+                            郵便番号から住所を自動入力
+                          </Button>
+                        </View>
+                      );
+                    }
 
+                    return (
+                      <View key={f.key} style={{ marginBottom: 10 }}>
+                        <PaperText style={{ fontSize: 12, opacity: 0.7 }}>{f.label}</PaperText>
+                        <TextInput
+                          mode="outlined"
+                          value={personalDraft[f.key] ?? ''}
+                          onChangeText={(t) =>
+                            setPersonalDraft(prev => ({ ...prev, [f.key]: t }))
+                          }
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                      </View>
+                    );
+                  })}
+
+                  <Button
+                    mode="contained"
+                    onPress={() => {
+                      setPersonalInfo({ ...personalDraft });
+                      setFlowStep(2);
+                    }}
+                  >
+                    次へ
+                  </Button>
+                </>
+              ) : null}
+
+              {flowStep === 2 ? (
+                <>
+                  <PaperText style={styles.label}>ステップ2: iPhone情報</PaperText>
+
+                  <PaperText style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
+                    機種
+                  </PaperText>
                   <View style={styles.rowWrap}>
-                    {group.colors.map(c => (
+                    {COLOR_GROUPS.map(g => (
                       <RadioChip
-                        key={c.key}
-                        selected={colorOption === c.key}
-                        onPress={() => setColorOption(c.key)}
+                        key={g.title}
+                        label={g.title}
+                        selected={iphoneKind === g.title}
+                        onPress={() => {
+                          setIphoneKind(g.title);
+                          setIphoneKindKey(g.key);
+                          setIphoneColorKey(g.colors?.[0]?.key ?? '0');
+                        }}
+                      />
+                    ))}
+                  </View>
+
+                  <PaperText style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
+                    モデル
+                  </PaperText>
+                  <View style={styles.rowWrap}>
+                    {iphoneKind === 'iPhone 16' ? (
+                      <>
+                        <RadioChip
+                          label="iPhone 16"
+                          selected={iphoneModelOption === '0'}
+                          onPress={() => setIphoneModelOption('0')}
+                        />
+                        <RadioChip
+                          label="iPhone 16 Plus"
+                          selected={iphoneModelOption === '1'}
+                          onPress={() => setIphoneModelOption('1')}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <RadioChip
+                          label="iPhone 17 Pro"
+                          selected={iphoneModelOption === '0'}
+                          onPress={() => setIphoneModelOption('0')}
+                        />
+                        <RadioChip
+                          label="iPhone 17 Pro Max"
+                          selected={iphoneModelOption === '1'}
+                          onPress={() => setIphoneModelOption('1')}
+                        />
+                      </>
+                    )}
+                  </View>
+
+                  <PaperText style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
+                    カラー（機種ごと）
+                  </PaperText>
+                  <View style={styles.rowWrap}>
+                    {currentColorGroup?.colors?.map(c => (
+                      <RadioChip
+                        key={`${currentColorGroup.title}-${c.key}`}
+                        selected={iphoneColorKey === c.key}
+                        onPress={() => setIphoneColorKey(c.key)}
                         BgColor={c.value}
                       />
                     ))}
                   </View>
-                </View>
-              ))}
 
-              <PaperText style={styles.label}>ストレージ</PaperText>
-              <View style={styles.rowWrap}>
-                {['0', '1', '2', '3'].map(v => (
-                  <RadioChip
-                    key={v}
-                    label={`${Number(v) + 1}`}
-                    selected={storageOption === v}
-                    onPress={() => setStorageOption(v)}
+
+                  <PaperText style={styles.label}>ストレージ</PaperText>
+                  <View style={styles.rowWrap}>
+                    {['0', '1', '2', '3'].map(v => (
+                      <RadioChip
+                        key={v}
+                        label={`${Number(v) + 1}`}
+                        selected={storageOption === v}
+                        onPress={() => setStorageOption(v)}
+                      />
+                    ))}
+                  </View>
+
+                  <PaperText style={styles.label}>注文個数</PaperText>
+                  <View style={styles.rowWrap}>
+                    <RadioChip label="1" selected={quantityOption === '1'} onPress={() => setQuantityOption('1')} />
+                    <RadioChip label="2" selected={quantityOption === '2'} onPress={() => setQuantityOption('2')} />
+                  </View>
+
+                  <Divider style={styles.divider} />
+
+                  <PaperText style={styles.label}>受け取り方法</PaperText>
+                  <View style={styles.rowWrap}>
+                    <RadioChip
+                      label="郵送"
+                      selected={deliveryOption === 'delivery'}
+                      onPress={() => setDeliveryOption('delivery')}
+                    />
+                    <RadioChip
+                      label="コンビニ"
+                      selected={deliveryOption === 'convenienceStore'}
+                      onPress={() => setDeliveryOption('convenienceStore')}
+                    />
+                    <RadioChip
+                      label="Apple Store"
+                      selected={deliveryOption === 'appleStore'}
+                      onPress={() => setDeliveryOption('appleStore')}
+                    />
+                  </View>
+
+                  <PaperText style={styles.label}>対象ストア</PaperText>
+                  <View style={styles.rowWrap}>
+                    {STORE_OPTIONS.map(s => (
+                      <RadioChip
+                        key={s.v}
+                        label={s.l}
+                        selected={storeOption === s.v}
+                        onPress={() => {
+                          setStoreOption(s.v);
+                          setZipCode(s.zip);
+                        }}
+                      />
+                    ))}
+                  </View>
+
+                  <PaperText style={styles.label}>注文確定有効</PaperText>
+                  <View style={styles.rowWrap}>
+                    <RadioChip
+                      label="有効"
+                      selected={confirmOption === 'true'}
+                      onPress={() => setConfirmOption('true')}
+                    />
+                    <RadioChip
+                      label="無効"
+                      selected={confirmOption === 'false'}
+                      onPress={() => setConfirmOption('false')}
+                    />
+                  </View>
+
+                  <PaperText style={styles.label}>店舗監視間隔(秒)</PaperText>
+                  <TextInput
+                    mode="outlined"
+                    value={storeMonitoringInterval}
+                    onChangeText={setStoreMonitoringInterval}
+                    keyboardType="number-pad"
                   />
-                ))}
-              </View>
-              
 
-              <PaperText style={styles.label}>注文個数</PaperText>
-              <View style={styles.rowWrap}>
-                <RadioChip label="1" selected={quantityOption === '1'} onPress={() => setQuantityOption('1')} />
-                <RadioChip label="2" selected={quantityOption === '2'} onPress={() => setQuantityOption('2')} />
-              </View>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                    <Button
+                      mode="contained-tonal"
+                      onPress={async () => {
+                        const savedRow = upsertIphoneRow();
+                        if (savedRow?.rowNum) {
+                          await updateIphoneRowInSpreadsheet(savedRow);
+                        }
+                      }}
+                      disabled={isAppending || isUpdating}
+                    >
+                      {editingIphoneRowId ? '更新' : '追加'}
+                    </Button>
+                    <Button
+                      mode="contained"
+                      loading={isAppending}
+                      disabled={isAppending || isUpdating || Boolean(editingIphoneRowId)}
+                      onPress={async () => {
+                        const ok = await appendIphoneRowsToSpreadsheet();
+                        if (ok) setFlowStep(3);
+                      }}
+                    >
+                      次へ（スプレッドシートに追加）
+                    </Button>
+                  </View>
 
-              <Divider style={styles.divider} />
+                  <Divider style={styles.divider} />
+                  <PaperText style={styles.label}>iPhoneリスト（追加 / 編集 / 削除）</PaperText>
 
-              <PaperText style={styles.label}>受け取り方法</PaperText>
-              <View style={styles.rowWrap}>
-                <RadioChip
-                  label="郵送"
-                  selected={deliveryOption === 'delivery'}
-                  onPress={() => setDeliveryOption('delivery')}
-                />
-                <RadioChip
-                  label="コンビニ"
-                  selected={deliveryOption === 'convenienceStore'}
-                  onPress={() => setDeliveryOption('convenienceStore')}
-                />
-                <RadioChip
-                  label="Apple Store"
-                  selected={deliveryOption === 'appleStore'}
-                  onPress={() => setDeliveryOption('appleStore')}
-                />
-              </View>
+                  {iphoneRows.length ? (
+                    iphoneRows.map(r => (
+                      <Card key={r.id} style={styles.sessionCard}>
+                        <Card.Content>
+                          <PaperText style={styles.sessionTitle}>
+                            {getModelLabel(r.iphoneKind, r.modelOption)} / {getColorLabel(r.iphoneKind, r.iphoneColorKey)} /{' '}
+                            {r.iphone_id || '（iphone_id 未入力）'}
+                          </PaperText>
 
-              <PaperText style={styles.label}>対象ストア</PaperText>
-              <View style={styles.rowWrap}>
-                {[
-                  { v: 'R718', l: '丸の内', zip: '100-0005' },
-                  { v: 'R079', l: '銀座', zip: '104-0061' },
-                  { v: 'R224', l: '表参道', zip: '150-0001' },
-                  { v: 'R768', l: '梅田', zip: '530-0011' },
-                  { v: 'R091', l: '心斎橋', zip: '542-0085' },
-                  { v: 'R005', l: '名古屋栄', zip: '460-0008' },
-                  { v: 'R119', l: '渋谷', zip: '150-0042' },
-                  { v: 'R128', l: '新宿', zip: '160-0022' },
-                  { v: 'R710', l: '川崎', zip: '210-0007' },
-                  { v: 'R711', l: '京都', zip: '600-8005' }
-                ].map(s => (
-                  <RadioChip
-                    key={s.v}
-                    label={s.l}
-                    selected={storeOption === s.v}
-                    onPress={() => { setStoreOption(s.v); setZipCode(s.zip) }}
-                  />
-                ))}
-              </View>
+                          <PaperText style={{ fontSize: 12, opacity: 0.7 }}>
+                            ストレージ: {getStorageLabel(r.storageOption ?? storageOption)} / 注文個数:{' '}
+                            {getQuantityLabel(r.quantityOption ?? quantityOption)}
+                          </PaperText>
+                          <PaperText style={{ fontSize: 12, opacity: 0.7 }}>
+                            受け取り方法: {getDeliveryLabel(r.deliveryOption ?? deliveryOption)} / 対象ストア:{' '}
+                            {getStoreLabel(r.storeOption ?? storeOption)}
+                          </PaperText>
+                          <PaperText style={{ fontSize: 12, opacity: 0.7 }}>
+                            支払い方法: {getPayLabel(r.payOption ?? payOption)} / 注文確定:{' '}
+                            {getConfirmLabel(r.confirmOption ?? confirmOption)}
+                          </PaperText>
 
-              <PaperText style={styles.label}>支払い方法</PaperText>
-              <View style={styles.rowWrap}>
-                <RadioChip
-                  label="クレカ"
-                  selected={payOption === 'creditcard'}
-                  onPress={() => setPayOption('creditcard')}
-                />
-                <RadioChip
-                  label="銀行振込"
-                  selected={payOption === 'bank'}
-                  onPress={() => setPayOption('bank')}
-                />
-              </View>
+                          <View style={styles.rowWrap}>
+                            <Button mode="text" onPress={() => editIphoneRow(r)}>
+                              編集
+                            </Button>
+                            <Button
+                              mode="text"
+                              onPress={() =>
+                                setExpandedIphoneRowId(prev => (prev === r.id ? null : r.id))
+                              }
+                            >
+                              {expandedIphoneRowId === r.id ? '詳細を閉じる' : '詳細'}
+                            </Button>
+                            <Button mode="text" onPress={() => deleteIphoneRow(r)}>削除</Button>
+                          </View>
 
-              <PaperText style={styles.label}>注文確定有効</PaperText>
-              <View style={styles.rowWrap}>
-                <RadioChip
-                  label="有効"
-                  selected={confirmOption === 'true'}
-                  onPress={() => setConfirmOption('true')}
-                />
-                <RadioChip
-                  label="無効"
-                  selected={confirmOption === 'false'}
-                  onPress={() => setConfirmOption('false')}
-                />
-              </View>
+                          {expandedIphoneRowId === r.id ? (
+                            <>
+                              <Divider style={styles.divider} />
+                              <PaperText style={{ fontSize: 12, opacity: 0.75 }}>
+                                iPhoneページID: {r.iphone_id || '（未入力）'}
+                              </PaperText>
+                              <PaperText style={{ fontSize: 12, opacity: 0.75 }}>
+                                機種: {getModelLabel(r.iphoneKind, r.modelOption)} / カラー:{' '}
+                                {getColorLabel(r.iphoneKind, r.iphoneColorKey)}
+                              </PaperText>
+                              <PaperText style={{ fontSize: 12, opacity: 0.75 }}>
+                                ストレージ: {getStorageLabel(r.storageOption ?? storageOption)} / 注文個数:{' '}
+                                {getQuantityLabel(r.quantityOption ?? quantityOption)}
+                              </PaperText>
+                              <PaperText style={{ fontSize: 12, opacity: 0.75 }}>
+                                受け取り方法: {getDeliveryLabel(r.deliveryOption ?? deliveryOption)} / 対象ストア:{' '}
+                                {getStoreLabel(r.storeOption ?? storeOption)}
+                              </PaperText>
+                              <PaperText style={{ fontSize: 12, opacity: 0.75 }}>
+                                支払い方法: {getPayLabel(r.payOption ?? payOption)} / 注文確定:{' '}
+                                {getConfirmLabel(r.confirmOption ?? confirmOption)}
+                              </PaperText>
+                              <PaperText style={{ fontSize: 12, opacity: 0.75 }}>
+                                郵便番号: {r.zipCode ?? zipCode}
+                              </PaperText>
+                              <PaperText style={{ fontSize: 12, opacity: 0.75 }}>
+                                店舗監視間隔(秒): {String(r.storeMonitoringInterval ?? storeMonitoringInterval)}
+                              </PaperText>
+                            </>
+                          ) : null}
+                        </Card.Content>
+                      </Card>
+                    ))
+                  ) : (
+                    <PaperText style={styles.emptyText}>iPhone情報がまだありません。</PaperText>
+                  )}
+                </>
+              ) : null}
 
-              <PaperText style={styles.label}>店舗監視間隔(秒)</PaperText>
-              <TextInput
-                mode="outlined"
-                value={storeMonitoringInterval}
-                onChangeText={setStoreMonitoringInterval}
-                keyboardType="number-pad"
-              />
+              {flowStep === 3 ? (
+                <>
+                  <PaperText style={styles.label}>ステップ3: 確認</PaperText>
+                  <PaperText style={{ fontSize: 12, opacity: 0.75 }}>
+                    個人情報: {personalInfo ? '保存済み' : '未保存'} / iPhone件数: {iphoneRows.length}
+                  </PaperText>
 
+                  {personalInfo ? (
+                    <>
+                      <Divider style={styles.divider} />
+                      <PaperText style={{ fontSize: 13, fontWeight: '700', opacity: 0.85 }}>
+                        個人情報（詳細）
+                      </PaperText>
+                      {PERSONAL_FIELDS.map(f => (
+                        <PaperText
+                          key={f.key}
+                          style={{ fontSize: 12, opacity: 0.78, marginTop: 6 }}
+                        >
+                          {f.label}: {personalInfo[f.key] || '（未入力）'}
+                        </PaperText>
+                      ))}
+
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                        <Button mode="text" onPress={() => setFlowStep(1)}>
+                          個人情報を編集
+                        </Button>
+                        <Button mode="text" onPress={() => setFlowStep(2)}>
+                          iPhone情報を編集
+                        </Button>
+                      </View>
+                    </>
+                  ) : (
+                    <Divider style={styles.divider} />
+                  )}
+
+                  <Divider style={styles.divider} />
+                  <PaperText style={{ fontSize: 13, fontWeight: '700', opacity: 0.85 }}>
+                    iPhone情報（詳細）
+                  </PaperText>
+                  {iphoneRows.length ? (
+                    iphoneRows.map(r => (
+                      <PaperText
+                        key={r.id}
+                        style={{ fontSize: 12, opacity: 0.78, marginTop: 6 }}
+                      >
+                        {r.iphoneKind} / {getColorLabel(r.iphoneKind, r.iphoneColorKey)} / {r.iphone_id || '（未入力）'} / ストレージ: {getStorageLabel(r.storageOption ?? storageOption)} / 個数: {getQuantityLabel(r.quantityOption ?? quantityOption)} / 受取: {getDeliveryLabel(r.deliveryOption ?? deliveryOption)} / 店舗: {getStoreLabel(r.storeOption ?? storeOption)} / 支払い: {getPayLabel(r.payOption ?? payOption)} / 注文確定: {getConfirmLabel(r.confirmOption ?? confirmOption)}
+                      </PaperText>
+                    ))
+                  ) : (
+                    <PaperText style={{ fontSize: 12, opacity: 0.78, marginTop: 6 }}>
+                      iPhone情報が未入力です。
+                    </PaperText>
+                  )}
+
+                  <Button
+                    mode="contained"
+                    onPress={handleStart}
+                    disabled={isStarting || isStopping}
+                    loading={isStarting}
+                  >
+                    スクレイピング開始
+                  </Button>
+                </>
+              ) : null}
             </Card.Content>
           </Card>
 
@@ -583,38 +1284,64 @@ export default function App() {
   );
 }
 
-const RadioChip = ({ label, selected, onPress, BgColor='white' }) => {
+const RadioChip = ({ label, selected, onPress, BgColor = 'white' }) => {
+  const hasLabel = label !== undefined && label !== null && String(label).trim() !== '';
 
-const style = StyleSheet.create({
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    background:BgColor,
-    borderColor:'#A9B3C7',
-    backgroundColor: 'transparent',
-    marginBottom: 8,
-    marginRight: 8,
-  },
-  chipSelected: {
-    borderColor: '#1D78FF',
-  },
-  chipText: { fontSize: 12, color: BgColor=="white" ? '#334155': 'white', fontWeight: '700' },
-  chipTextSelected: { color: '#334155' },
-});
+  const style = StyleSheet.create({
+    chip: {
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: '#A9B3C7',
+      backgroundColor: 'transparent',
+      marginBottom: 8,
+      marginRight: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    chipSwatch: {
+      width: 36,
+      height: 36,
+      paddingHorizontal: 0,
+      paddingVertical: 0,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: '#A9B3C7',
+      marginBottom: 8,
+      marginRight: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    chipSelected: {
+      borderColor: '#1D78FF',
+    },
+    chipText: {
+      fontSize: 12,
+      color: BgColor == "white" ? '#334155' : 'white',
+      fontWeight: '700',
+    },
+    chipTextSelected: { color: '#334155' },
+  });
 
-  return  <TouchableOpacity
-    accessibilityRole="button"
-    accessibilityState={{ selected }}
-    style={[style.chip, selected && style.chipSelected]}
-    onPress={onPress}
-  >
-    <PaperText style={[style.chipText, selected && style.chipTextSelected]}>
-      {label}
-    </PaperText>
-  </TouchableOpacity>
-
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      style={[
+        hasLabel ? style.chip : style.chipSwatch,
+        !hasLabel ? { backgroundColor: BgColor } : null,
+        selected && style.chipSelected,
+      ]}
+      onPress={onPress}
+    >
+      {hasLabel ? (
+        <PaperText style={[style.chipText, selected && style.chipTextSelected]}>
+          {label}
+        </PaperText>
+      ) : null}
+    </TouchableOpacity>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -645,7 +1372,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor:'#A9B3C7',
+    borderColor: '#A9B3C7',
     backgroundColor: 'transparent',
     marginBottom: 8,
     marginRight: 8,

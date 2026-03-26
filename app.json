@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "platforms": ["android", "web"],
     "extra": {
-      "SERVER_BASE_URL": "http://38.180.28.53:3000",
+      "SERVER_BASE_URL": "https://nonprejudiced-gerardo-preaexistent.ngrok-free.dev",
       "API_KEY": "578d28153ca5fc4f7b20c1e4df7c51f87638627b3261165ed8a9803129d85d97"
     },
     "android": {
