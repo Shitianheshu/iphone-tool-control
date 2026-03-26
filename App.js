@@ -95,6 +95,17 @@ const LS_KEYS = {
   flowStep: 'iphoneAutoPurchase.flowStep.v1',
 };
 
+function normalizeDigits(input) {
+  return String(input ?? '').replace(/\D/g, '');
+}
+
+function formatCardNumberForDisplay(input) {
+  const digits = normalizeDigits(input);
+  if (digits.length !== 16) return digits; // keep as digits only
+  // Group as xxxx xxxx xxxx xxxx
+  return `${digits.slice(0, 4)} ${digits.slice(4, 8)} ${digits.slice(8, 12)} ${digits.slice(12, 16)}`;
+}
+
 function canUseLocalStorage() {
   try {
     return typeof globalThis !== 'undefined' && Boolean(globalThis.localStorage);
@@ -558,6 +569,8 @@ export default function App() {
       const rows = rowsToAppend.map(r => ({
         ...personalInfo,
         iphone_id: r.iphone_id,
+        mobilePhone: normalizeDigits(personalInfo.mobilePhone),
+        cardNumber: formatCardNumberForDisplay(personalInfo.cardNumber),
         modelOption: r.modelOption ?? (r.iphoneKind === 'iPhone 16' ? '0' : '1'),
         colorOption: r.colorOption ?? String(r.iphoneColorKey ?? '0'),
         storageOption: r.storageOption ?? storageOption,
@@ -647,6 +660,8 @@ export default function App() {
         iphone_id: row.iphone_id,
         modelOption: row.modelOption ?? '0',
         colorOption: row.colorOption ?? String(row.iphoneColorKey ?? '0'),
+        mobilePhone: normalizeDigits(personalInfo.mobilePhone),
+        cardNumber: formatCardNumberForDisplay(personalInfo.cardNumber),
         storageOption: row.storageOption,
         quantityOption: row.quantityOption,
         deliveryOption: row.deliveryOption,
